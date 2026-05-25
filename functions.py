@@ -3,11 +3,30 @@ import json
 import pandas as pd
 from datetime import datetime
 import calendar
+from dotenv import load_dotenv
+from base_loger import WriteLogger
+import os
 
 
-path_config = r"DashboardsWolkvox/config/config.json"
-config = json.loads(open(path_config).read())
+# Fucnion que crea paths relativos a la ruta del archivo de ejecucion 
+def create_path(path):
+    '''
+    Crea una ruta relativa a la ubicacion del archivo que se esta ejecutando
+    Ejemplo: 
+    - ./main.py 
+    Nueva ruta
+    - ./main.py
+    - ./nueva/ruta/creada
+    '''
+    try:
+        base = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base,path)
+        os.makedirs(path,exist_ok=True)
+        return path
+    except Exception as exc:
+        logger(exc)
 
+# Funcion que obtiene la ip publica del equipo
 def obtener_ip_publica():
     servicios = [
         'https://api.ipify.org',
@@ -25,10 +44,21 @@ def obtener_ip_publica():
             continue
     return None
 
-def get_calls(config, operacion, campaign_id, mes):
-    print("Ejecución reporte Llamadas")
-    token = config[operacion]["token"]
-    server = config[operacion]["server"]
+#Variables wolkvox
+load_dotenv()
+wolkvox_token = os.getenv("TOKEN")
+wolkvox_server = os.getenv("SERVER")
+campaign_id = os.getenv("ID_CAMPAIGN")
+headers = {
+            'wolkvox-token': f'{wolkvox_token}'
+        }
+
+#logger
+path_logs = create_path(datetime.now().strftime("logs/%Y%m"))
+logger = WriteLogger("Liverpool", filename_preffix="Liverpool")
+
+#Control de fechas
+def control_fechas(mes):
     mes = int(mes)
     _,end = calendar.monthrange(datetime.now().year,mes)
     if mes>=10:
@@ -37,43 +67,109 @@ def get_calls(config, operacion, campaign_id, mes):
     else:
         date_end = datetime.now().strftime(f"%Y0{mes}{end}235900")
         date_ini = datetime.now().strftime(f"%Y0{mes}01000000")
-    print(date_ini)
-    print(date_end)
+    logger(date_ini,level='debug')
+    logger(date_end,level='debug')
+    return date_ini, date_end
+
+# Descarga el reporte 3 de la seccion campañas para extraer todos los registros de llamada
+def campaign_3(mes, file=False):
+    '''
+    Funcion encargada de descargar el reporte 3 de campañas
+    esta funcion recibe un int que hace referencia al mes a descargar
+    y un True o False que define si genera o no un archivo de salida
+    el archivo se guarda en una subcarpeta de donde se ejecuta el script principal
+    
+    Regresa un DataFrame con la data encontrada
+    '''
+    logger("Ejecución reporte campaña - 3. 'Campaña resultado telefono a telefono'")
+    date_ini, date_end = control_fechas(mes)
+
     try:
-        headers = {
-            'wolkvox-token': f'{token}'
-        }
-        url = f"https://wv{server}.wolkvox.com/api/v2/reports_manager.php?api=campaign_3&campaign_id={campaign_id}&date_ini={date_ini}&date_end={date_end}"
+        logger("Extrayendo data...")
+        url = f"https://wv{wolkvox_server}.wolkvox.com/api/v2/reports_manager.php?api=campaign_3&campaign_id={campaign_id}&date_ini={date_ini}&date_end={date_end}"
         response = requests.request("GET", url, headers=headers, data={})
-        data = pd.DataFrame(data=response.json()["data"])
-        print(data["customer_id"].head())
-    except requests.exceptions.ConnectionError:
-        print(f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta")
-        return {
-            "status" : 404,
-            "mensaje" : f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta",
-            "data" : f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta"
-        }
+        if response.status_code == 200:
+            data = pd.DataFrame(data=response.json()["data"])
+        else:
+            logger(response.text)
+    except Exception as exc:
+        data = pd.DataFrame()
+        logger.exception(exc)
+        logger(f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta")
 
-# def reporte_llamadas():
-#   print("Ejecución reporte Llamadas")
-#   campaign_id = config["campaign_id"]
-#   url_llamadas = f"https://wv{wolkvox_server}.wolkvox.com/api/v2/reports_manager.php?api=campaign_3&campaign_id={campaign_id}&date_ini={date_ini}&date_end={date_end}"
-#   response = requests.request("GET", url_llamadas, headers=headers, data=payload)
-#   if response.status_code == 200:
-#     #Transformando la respuesta a json
-#     result = response.text
-#     result = json.loads(result)
+    # Validando data y generando file (Si se activa)
+    if not data.empty:
+        logger(f"Data obtenida {len(data)} registros")
+        logger(data.head())
+        if file:
+            path = create_path(datetime.now().strftime("data/%Y%m"))
+            logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+            data.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+    else:
+        data = 0
+    logger("Extraccion finalizada")
+    return data
+        
+# Funcion que descarga el reporte 1. Detalle de llamadas IVR, de Diagram Reports        
+def diagram_reports_1(mes, file=False):
+    '''
+    Funcion encargada de descargar el reporte 1 de diagram reports
+    esta funcion recibe un int que hace referencia al mes a descargar
+    y un True o False que define si genera o no un archivo de salida
+    el archivo se guarda en una subcarpeta de donde se ejecuta el script principal
+    
+    Regresa un DataFrame con la data encontrada
+    '''
+    logger("Ejecución reporte Diagram Reports - 1. Detalle de llamadas IVR, de Diagram Reports")
+    date_ini, date_end = control_fechas(mes)
+  
+    try:
+        logger("Extrayendo data...")
+        url = f"https://wv{wolkvox_server}.wolkvox.com/api/v2/reports_manager.php?api=diagram_1&date_ini={date_ini}&date_end={date_end}"
+        response = requests.request("GET", url, headers=headers, data={})
+        if response.status_code == 200:
+            data = pd.DataFrame(data=response.json()["data"])
+            logger(f"Data obtenida {len(data)} registros")
+            logger(data.head(5))
+        else:
+            logger(response.text)
+    except Exception as exc:
+        data = pd.DataFrame()
+        logger.exception(exc)
+        logger(f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta")
 
-#     #Genrando archivo de salida txt separado por comas
-#     df = pd.DataFrame(data=result["data"])
-#     print(df.head(5))
-#     # df.to_csv(os.path.join(config["path_data"],f"Llamadas_{date_ini[:8]}.txt"),sep=separador, index=False)
-#     print("Reporte llamadas finalizado correctamente")
-#   else:
-#     print("Reporte llamadas con error")
-#     #Generando archivo con respuesta de error
-#     with open(os.path.join(config["path_data"],f"Llamadas_{date_ini[:6]}.txt"), 'w') as file:
-#         file.write(response.text)
+    # Validando data y generando file (Si se activa)    
+    if not data.empty:
+        logger(f"Data obtenida {len(data)} registros")
+        logger(data.head())
+        if file:
+            path = create_path(datetime.now().strftime("data/%Y%m"))
+            logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+            data.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+    else:
+        data = 0
+    
+    logger("Extraccion finalizada")
+    return data
+    
 
-get_calls(config, "promass","25574","5")
+def control_llamadas(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = False):
+    df = llamadas.merge(tipificaciones,left_on='telephone', right_on='ani')
+    logger(df.head())
+    if file:
+        path = create_path(datetime.now().strftime("data/%Y%m"))
+        logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+        df.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+    
+    # Obteniendo el estatus de llamada (ANSWER, ANSWER-MACHINE, BUSY, NO-ANSWER, CONGESTION, FAILED)
+    conteo_estatus_llamada = df.value_counts("result_x")
+    logger(conteo_estatus_llamada)
+
+    # Obteniendo el estatus de llamada (AGENTE, NO_PASA_AGENTE, CUELGA_LLAMADA, BUZON, PULSE)
+    conteo_tipificacion = df.value_counts("cod_opc_menu")
+    logger(conteo_tipificacion)
+
+llamadas = campaign_3("5")
+tipificaciones = diagram_reports_1("5")
+
+control_llamadas(llamadas,tipificaciones)
