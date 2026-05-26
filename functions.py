@@ -154,12 +154,13 @@ def diagram_reports_1(mes, file=False):
     
 
 def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = False):
-    logger("Filtrando reporte '1. Detalle de llamadas IVR' por 'IVR CONVERSACIONAL LIVERPOOL..'")
+    logger("Filtrando reporte '1. Detalle de llamadas IVR' por 'IVR CONVERSACIONAL LIVERPOOL..'", level='debug')
     tipificaciones = tipificaciones[tipificaciones["rp_name"] == "IVR Conversacional LIVERPOOL"]
-    logger(f"Nueva longitud de {len(tipificaciones)}")
-    logger("Filtro terminado")
+    logger(f"Nueva longitud de {len(tipificaciones)}", level='debug')
+    logger("Filtro terminado", level='debug')
 
     logger("Creando panel principal")
+    # Generando Dataframe unificado con llamadas y tipificaciones
     df = llamadas.merge(tipificaciones,left_on='conn_id', right_on='conn_id',how='left')
 
     if file:
@@ -168,19 +169,32 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
         df.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
         logger("Archivo creado")
 
-    # Obteniendo el estatus de llamada (ANSWER, ANSWER-MACHINE, BUSY, NO-ANSWER, CONGESTION, FAILED)
-    conteo_estatus_llamada = df.value_counts("result_x")
-    logger("Total estatus llamada",conteo_estatus_llamada)
-
-    # Obteniendo la tipificacion del IVR (AGENTE, NO_PASA_AGENTE, CUELGA_LLAMADA, BUZON, PULSE)
-    conteo_tipificacion = df.value_counts("cod_opc_menu")
-    logger("Total estatus tipificacion",conteo_tipificacion)
-    
     # Obteniendo el total de registros unicos
     total_registros = df["telephone"].nunique()
-    logger(f"Total registros unicos {total_registros}")
+    logger(f"Usuarios recibidos ({total_registros})")
+
+    # Obteniendo el estatus de llamada (ANSWER, ANSWER-MACHINE, BUSY, NO-ANSWER, CONGESTION, FAILED)
+    conteo_estatus_llamada = df["result_x"].value_counts().to_frame("cantidad")
+    conteo_estatus_llamada["porcentaje"] = (conteo_estatus_llamada["cantidad"]/conteo_estatus_llamada["cantidad"].sum()*100).round(2)
+    logger(f"Total estatus llamada ({conteo_estatus_llamada['cantidad'].sum()})",conteo_estatus_llamada)
+    alertas_llamadas = conteo_estatus_llamada[conteo_estatus_llamada["porcentaje"] > 30]
+    logger(f"Revisar problema", alertas_llamadas, level="warning")
+
+    # Obteniendo la tipificacion del IVR (AGENTE, NO_PASA_AGENTE, CUELGA_LLAMADA, BUZON, PULSE)
+    conteo_tipificacion = df["cod_opc_menu"].value_counts().to_frame("cantidad")
+    conteo_tipificacion["porcentaje"] = (conteo_tipificacion["cantidad"]/conteo_tipificacion["cantidad"].sum()*100).round(2)
+    logger(f"Total estatus bot ({conteo_tipificacion['cantidad'].sum()})",conteo_tipificacion)
+    alertas_tipificacion = conteo_tipificacion[conteo_tipificacion["porcentaje"] > 30]
+    logger(f"Revisar problema", alertas_tipificacion, level="warning")
+
+    # Obteniendo remarcaciones
+    conteo_remarcaciones = df["customer_id_x"].value_counts().value_counts().to_frame("cantidad")
+    conteo_remarcaciones["porcentaje"] = (conteo_remarcaciones["cantidad"]/conteo_remarcaciones["cantidad"].sum()*100).round(2)
+    conteo_remarcaciones.index = conteo_remarcaciones.index.map(lambda x: f"{x} Intento(s)")
+    logger(f"Total remarcaciones",conteo_remarcaciones)
+
 
 llamadas = campaign_3("5")
 tipificaciones = diagram_reports_1("5")
 
-panel_principal(llamadas,tipificaciones, True)
+panel_principal(llamadas,tipificaciones)
