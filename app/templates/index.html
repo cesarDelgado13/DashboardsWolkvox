@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Wolkvox Viewer</title>
+    <style>
+      /*Header*/
+      #header-tittle {
+        text-align: center;
+        padding-top: 15px;
+        width: 100%;
+        height: 45px;
+        background-color: red;
+        color: #f4f4f4;
+      }
+
+      #div-header-config {
+        width: 100%;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-top: 2px solid red;
+        border-bottom: 2px solid red;
+      }
+    </style>
+    <!-- sweetalert -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  </head>
+
+  <body>
+    <h2 id="header-tittle">Controlador de Wolkvox</h2>
+
+    <!-- 🔹 CONTROLES -->
+    <section id="controls">
+      <form id="form">
+        <div id="div-header-config">
+          <!-- Config -->
+          <label>Operacion:</label>
+          <select name="config" id="config"></select>
+
+          <!-- Acción -->
+          <label>Acción:</label>
+          <select name="accion" id="accion">
+            <option value="promass">Promass</option>
+            <option value="starcredit">StartCredit</option>
+          </select>
+
+          <!-- Submit -->
+          <button id="btn-submit" type="submit">Ejecutar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 🔹 RESULTADOS -->
+    <section id="results">
+      <h3>Resultados</h3>
+      <div id="resultado"></div>
+    </section>
+
+    <!-- 🔹 SCRIPTS -->
+    <script>
+      // =========================
+      // SWITCH FUNCIONES
+      // =========================
+      const accionSelect = document.getElementById("accion");
+      const resultsSection = document.getElementById("results");
+
+      accionSelect.addEventListener("change", manejarVista);
+
+      function manejarVista() {
+        const accion = accionSelect.value;
+
+        if (accion === "promass") {
+          resultsSection.style.display = "block";
+        } else if (accion === "starcredit") {
+          resultsSection.style.display = "none";
+        } else {
+          resultsSection.style.display = "none";
+        }
+      }
+
+      // ejecutar al cargar
+      manejarVista();
+
+      // =========================
+      // SUBMIT
+      // =========================
+      document
+        .getElementById("form")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+          // 1. Mostrar mensaje de cargando
+          Swal.fire({
+            title: "Procesando...",
+            text: "Por favor espera mientras se completa la operación",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading(); // Esto muestra el spinner animado
+            },
+          });
+
+          // Creando arreglo con la informacion
+          const formData = new FormData(this);
+          try {
+            const response = await fetch("http://127.0.0.1:8000/ejecutar", {
+              method: "POST",
+              body: formData,
+            });
+
+            // Respuesta obtenida
+            const data = await response.json();
+
+            // ALERTA CORRECTO
+            if (response.status == 200) {
+              Swal.fire({
+                title: "Éxito",
+                text: data.mensaje,
+                icon: "success",
+                showConfirmButton: true,
+              });
+            }
+            // ALERTA ERROR
+            else if (response.status == 404) {
+              Swal.fire({
+                title: "Error",
+                text: data.mensaje,
+                icon: "error",
+                showConfirmButton: true,
+              });
+            } else {
+              Swal.close();
+            }
+
+            // Limpiando inputs
+            document.getElementById("archivo").value = "";
+
+            // // DEFINICION PARA MOSTRAR U OCULTAR TABLA
+            // if (data.data && Array.isArray(data.data)) {
+            //   renderTable(data.data);
+            // }
+          } catch (error) {
+            document.getElementById("resultado").innerText = "Error: " + error;
+          }
+        });
+
+      // =========================
+      // INIT
+      // =========================
+    //   cargarConfiguraciones();
+    </script>
+  </body>
+</html>

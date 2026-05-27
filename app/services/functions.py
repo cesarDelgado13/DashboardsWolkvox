@@ -185,6 +185,7 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
     conteo_estatus_llamada = df["result_x"].value_counts().to_frame("cantidad")
     conteo_estatus_llamada["porcentaje"] = (conteo_estatus_llamada["cantidad"]/conteo_estatus_llamada["cantidad"].sum()*100).round(2)
     logger(f"Total estatus llamada ({conteo_estatus_llamada['cantidad'].sum()})",conteo_estatus_llamada)
+    # Generando umbrales
     alertas_llamadas = conteo_estatus_llamada[conteo_estatus_llamada["porcentaje"] > 30]
     logger(f"Revisar problema", alertas_llamadas, level="warning")
 
@@ -192,6 +193,7 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
     conteo_tipificacion = df["cod_opc_menu"].value_counts().to_frame("cantidad")
     conteo_tipificacion["porcentaje"] = (conteo_tipificacion["cantidad"]/conteo_tipificacion["cantidad"].sum()*100).round(2)
     logger(f"Total estatus bot ({conteo_tipificacion['cantidad'].sum()})",conteo_tipificacion)
+    # Generando umbrales
     alertas_tipificacion = conteo_tipificacion[conteo_tipificacion["porcentaje"] > 30]
     logger(f"Revisar problema", alertas_tipificacion, level="warning")
 
