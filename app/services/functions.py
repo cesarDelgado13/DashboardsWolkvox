@@ -54,7 +54,7 @@ headers = {
         }
 
 #logger
-path_logs = create_path(datetime.now().strftime("logs/%Y%m"))
+# path_logs = create_path(datetime.now().strftime("logs/%Y%m"))
 logger = WriteLogger("Liverpool", filename_preffix="Liverpool")
 
 #Control de fechas
@@ -154,7 +154,7 @@ def diagram_reports_1(mes, file=False):
     logger("Extraccion finalizada")
     return data
     
-
+#Generacion de resumen de la informacion
 def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = False):
     if llamadas.empty:
         logger("No se encontro informacion de Llamadas")
@@ -205,6 +205,7 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
 
     return df
 
+# Obtener detalles por tifipifacion de bot
 def get_details_tipificacion(df:pd.DataFrame, tipificacion):
     if df.empty:
         logger("No se encontro informacion")
@@ -215,6 +216,7 @@ def get_details_tipificacion(df:pd.DataFrame, tipificacion):
     logger(df_tipificacion)
     return df_tipificacion
 
+# Obtener detalles por numero de telefono
 def get_details_numero(df:pd.DataFrame, numero):
     if tipificaciones.empty:
         logger("No se encontro informacion")
@@ -229,12 +231,9 @@ def get_details_numero(df:pd.DataFrame, numero):
         logger(df_llamadas)
         return df_llamadas
 
-
 llamadas = campaign_3("5")
 tipificaciones = diagram_reports_1("5")
 
 df = panel_principal(llamadas,tipificaciones)
 df_tipificacion = get_details_tipificacion(df,"CV_BUZON")
 df_llamadas = get_details_numero(df,"9525545385141")
-logger("Llamadas",df_llamadas)
-logger("Tipificacion",df_tipificacion)
