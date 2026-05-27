@@ -26,6 +26,7 @@
     </style>
     <!-- sweetalert -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
 
   <body>
@@ -35,12 +36,8 @@
     <section id="controls">
       <form id="form">
         <div id="div-header-config">
-          <!-- Config -->
-          <label>Operacion:</label>
-          <select name="config" id="config"></select>
-
           <!-- Acción -->
-          <label>Acción:</label>
+          <label>Operacion:</label>
           <select name="accion" id="accion">
             <option value="promass">Promass</option>
             <option value="starcredit">StartCredit</option>
@@ -48,6 +45,10 @@
 
           <!-- Submit -->
           <button id="btn-submit" type="submit">Ejecutar</button>
+        </div>
+        <!-- 2. Contenedor y lienzo para la gráfica de pastel -->
+        <div style="width: 400px; height: 400px; margin: auto">
+          <canvas id="graficaPastelEstatus"></canvas>
         </div>
       </form>
     </section>
@@ -60,6 +61,60 @@
 
     <!-- 🔹 SCRIPTS -->
     <script>
+      // =========================
+      // CARGAR CONFIGURACIONES
+      // =========================
+      let miGraficaPastel = null;
+      async function cargarPanel() {
+        const response = await fetch("http://127.0.0.1:8000/panel-principal");
+        const resultado = await response.json();
+
+        const ctx = document
+          .getElementById("graficaPastelEstatus")
+          .getContext("2d");
+
+        //   # Si la gráfica ya existía (por una consulta previa), la destruimos para evitar parpadeos
+        if (miGraficaPastel) {
+          miGraficaPastel.destroy();
+        }
+
+        //   # 4. Crear la estructura de Chart.js con los datos del endpoint
+        miGraficaPastel = new Chart(ctx, {
+          type: "pie", // Define que es una gráfica de pastel
+          data: {
+            labels: resultado.labels, // Recibe: ['ANSWER', 'NO-ANSWER']
+            datasets: [
+              {
+                data: resultado.data, // Recibe: [71.4, 28.6]
+                backgroundColor: [
+                  "#2ecc71", // Verde para ANSWER
+                  "#e74c3c", // Rojo para NO-ANSWER
+                  "#f1c40f", // Amarillo si hubiera BUSY
+                  "#3498db", // Azul para otros
+                ],
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: "top",
+              },
+              tooltip: {
+                callbacks: {
+                  // Agrega el símbolo de % al pasar el mouse por encima
+                  label: function (context) {
+                    return ` ${context.label}: ${context.raw}%`;
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
       // =========================
       // SWITCH FUNCIONES
       // =========================
@@ -147,7 +202,7 @@
       // =========================
       // INIT
       // =========================
-    //   cargarConfiguraciones();
+      cargarPanel();
     </script>
   </body>
 </html>

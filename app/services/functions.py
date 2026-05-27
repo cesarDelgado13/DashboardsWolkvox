@@ -285,6 +285,6 @@ def get_details_numero(mes, numero):
         logger(df_llamadas)
         return df_llamadas
 
-total_registros, conteo_estatus_llamada, conteo_tipificacion, conteo_remarcaciones = panel_principal(5)
-df_tipificacion = get_details_tipificacion(5,"CV_BUZON")
-df_llamadas = get_details_numero(5,"9526671619595")
+# total_registros, conteo_estatus_llamada, conteo_tipificacion, conteo_remarcaciones = panel_principal(5)
+# df_tipificacion = get_details_tipificacion(5,"CV_BUZON")
+# df_llamadas = get_details_numero(5,"9526671619595")
