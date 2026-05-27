@@ -24,7 +24,7 @@ def create_path(path):
         os.makedirs(path,exist_ok=True)
         return path
     except Exception as exc:
-        logger(exc)
+        print(exc)
 
 # Funcion que obtiene la ip publica del equipo
 def obtener_ip_publica():
@@ -87,15 +87,16 @@ def campaign_3(mes, file=False):
     try:
         logger("Extrayendo data...")
         url = f"https://wv{wolkvox_server}.wolkvox.com/api/v2/reports_manager.php?api=campaign_3&campaign_id={campaign_id}&date_ini={date_ini}&date_end={date_end}"
-        response = requests.request("GET", url, headers=headers, data={})
+        response = requests.request("GET", url, headers=headers, data={}, timeout=90)
         if response.status_code == 200:
             data = pd.DataFrame(data=response.json()["data"])
         else:
             logger(response.text)
+            return pd.DataFrame()
     except Exception as exc:
-        data = pd.DataFrame()
         logger.exception(exc)
         logger(f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta")
+        return pd.DataFrame()
 
     # Validando data y generando file (Si se activa)
     if not data.empty:
@@ -107,7 +108,7 @@ def campaign_3(mes, file=False):
             data.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
     else:
         logger(f"No se encontraron registros para {date_ini} - {date_end}")
-        data = 0
+        data = pd.DataFrame()
     logger("Extraccion finalizada")
     return data
         
@@ -127,15 +128,16 @@ def diagram_reports_1(mes, file=False):
     try:
         logger("Extrayendo data...")
         url = f"https://wv{wolkvox_server}.wolkvox.com/api/v2/reports_manager.php?api=diagram_1&date_ini={date_ini}&date_end={date_end}"
-        response = requests.request("GET", url, headers=headers, data={})
+        response = requests.request("GET", url, headers=headers, data={}, timeout=90)
         if response.status_code == 200:
             data = pd.DataFrame(data=response.json()["data"])
         else:
             logger(response.text)
+            return pd.DataFrame()
     except Exception as exc:
-        data = pd.DataFrame()
         logger.exception(exc)
         logger(f"Validar que la IP: '{obtener_ip_publica()}' este dada de alta")
+        return pd.DataFrame()
 
     # Validando data y generando file (Si se activa)    
     if not data.empty:
@@ -143,17 +145,23 @@ def diagram_reports_1(mes, file=False):
         logger(data.head())
         if file:
             path = create_path(datetime.now().strftime("data/%Y%m"))
-            logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
-            data.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+            logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Tipificaciones_%Y%m%d.xlsx")))
+            data.to_excel(os.path.join(path,datetime.now().strftime("Tipificaciones_%Y%m%d.xlsx")))
     else:
         logger(f"No se encontraron registros para {date_ini} - {date_end}")
-        data = 0
+        data = pd.DataFrame()
     
     logger("Extraccion finalizada")
     return data
     
 
 def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = False):
+    if llamadas.empty:
+        logger("No se encontro informacion de Llamadas")
+        return pd.DataFrame()
+    if tipificaciones.empty:
+        logger("No se encontro informacion de Tipificaciones")
+        return pd.DataFrame()
     logger("Filtrando reporte '1. Detalle de llamadas IVR' por 'IVR CONVERSACIONAL LIVERPOOL..'", level='debug')
     tipificaciones = tipificaciones[tipificaciones["rp_name"] == "IVR Conversacional LIVERPOOL"]
     logger(f"Nueva longitud de {len(tipificaciones)}", level='debug')
@@ -161,12 +169,12 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
 
     logger("Creando panel principal")
     # Generando Dataframe unificado con llamadas y tipificaciones
-    df = llamadas.merge(tipificaciones,left_on='conn_id', right_on='conn_id',how='left')
+    df = llamadas.merge(tipificaciones,left_on='conn_id', right_on='conn_id',how='left').fillna("N/D").replace("", "N/D")
 
     if file:
-        logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
         path = create_path(datetime.now().strftime("data/%Y%m"))
-        df.to_excel(os.path.join(path,datetime.now().strftime("Llamadas_%Y%m%d.xlsx")))
+        logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Union_%Y%m%d.xlsx")))
+        df.to_excel(os.path.join(path,datetime.now().strftime("Union_%Y%m%d.xlsx")), index=False)
         logger("Archivo creado")
 
     # Obteniendo el total de registros unicos
@@ -192,9 +200,41 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
     conteo_remarcaciones["porcentaje"] = (conteo_remarcaciones["cantidad"]/conteo_remarcaciones["cantidad"].sum()*100).round(2)
     conteo_remarcaciones.index = conteo_remarcaciones.index.map(lambda x: f"{x} Intento(s)")
     logger(f"Total remarcaciones",conteo_remarcaciones)
+    logger("Proceso finalizado")
+
+
+    return df
+
+def get_details_tipificacion(df:pd.DataFrame, tipificacion):
+    if df.empty:
+        logger("No se encontro informacion")
+        return pd.DataFrame()
+    logger(f"Obteniendo detalles de {tipificacion}")
+    df_tipificacion = df[df['cod_opc_menu'] == tipificacion]
+    df_tipificacion = df_tipificacion[["customer_id_x","customer_name","telephone","date_x","result_x","cod_opc_menu","opt8","opt12"]]
+    logger(df_tipificacion)
+    return df_tipificacion
+
+def get_details_numero(df:pd.DataFrame, numero):
+    if tipificaciones.empty:
+        logger("No se encontro informacion")
+        return pd.DataFrame()
+    logger(f"Obteniendo detalles de {numero}")
+    df_llamadas = df[df['telephone'] == numero]
+    df_llamadas = df_llamadas[["customer_id_x","customer_name","telephone","date_x","result_x","cod_opc_menu","opt8","opt12"]]
+    if df_llamadas.empty:
+        logger(f"No se encontraron registros de {numero}")
+        return 0
+    else:
+        logger(df_llamadas)
+        return df_llamadas
 
 
 llamadas = campaign_3("5")
 tipificaciones = diagram_reports_1("5")
 
-panel_principal(llamadas,tipificaciones)
+df = panel_principal(llamadas,tipificaciones)
+df_tipificacion = get_details_tipificacion(df,"CV_BUZON")
+df_llamadas = get_details_numero(df,"9525545385141")
+logger("Llamadas",df_llamadas)
+logger("Tipificacion",df_tipificacion)
