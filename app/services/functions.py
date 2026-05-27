@@ -4,8 +4,17 @@ import pandas as pd
 from datetime import datetime
 import calendar
 from dotenv import load_dotenv
-from base_loger import WriteLogger
 import os
+import sys
+# Obtiene la ruta de la carpeta actual y sube un nivel (al padre)
+dir_actual = os.path.dirname(os.path.abspath(__file__))
+dir_padre = os.path.dirname(dir_actual)
+
+# Inserta el directorio padre al principio de la lista de rutas de Python
+sys.path.insert(0, dir_padre)
+
+# Ahora puedes importar tu archivo y función normalmente
+from base_loger import WriteLogger
 
 
 # Fucnion que crea paths relativos a la ruta del archivo de ejecucion 
@@ -155,7 +164,11 @@ def diagram_reports_1(mes, file=False):
     return data
     
 #Generacion de resumen de la informacion
-def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = False):
+def crear_reportes(mes, file = False):
+    #Generando reportes
+    llamadas = campaign_3(mes)
+    tipificaciones = diagram_reports_1(mes)
+
     if llamadas.empty:
         logger("No se encontro informacion de Llamadas")
         return pd.DataFrame()
@@ -176,6 +189,25 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
         logger("Creando archivo de salida:",os.path.join(path,datetime.now().strftime("Union_%Y%m%d.xlsx")))
         df.to_excel(os.path.join(path,datetime.now().strftime("Union_%Y%m%d.xlsx")), index=False)
         logger("Archivo creado")
+    
+    return df
+
+def panel_principal(mes):
+
+    # Buscando archivo base
+    path = f"{dir_actual}/{datetime.now().strftime('data/%Y%m/Union_%Y%m%d.xlsx')}"
+    logger(f"Buscando archivo {path}")
+    if os.path.exists(path):
+        df = pd.read_excel(path)
+        logger("Archivo encontrado")
+    else:
+        logger("Archivo no encontrado, creandolo...")
+        df = crear_reportes(mes,True)
+
+    if df.empty:
+        logger("No se encontro informacion de Llamadas")
+        return 0,pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
+
 
     # Obteniendo el total de registros unicos
     total_registros = df["telephone"].nunique()
@@ -187,15 +219,15 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
     logger(f"Total estatus llamada ({conteo_estatus_llamada['cantidad'].sum()})",conteo_estatus_llamada)
     # Generando umbrales
     alertas_llamadas = conteo_estatus_llamada[conteo_estatus_llamada["porcentaje"] > 30]
-    logger(f"Revisar problema", alertas_llamadas, level="warning")
+    logger(f"Revisar problema", alertas_llamadas)
 
     # Obteniendo la tipificacion del IVR (AGENTE, NO_PASA_AGENTE, CUELGA_LLAMADA, BUZON, PULSE)
-    conteo_tipificacion = df["cod_opc_menu"].value_counts().to_frame("cantidad")
+    conteo_tipificacion = df["cod_opc_menu"].value_counts().to_frame("cantidad").drop("N/D")
     conteo_tipificacion["porcentaje"] = (conteo_tipificacion["cantidad"]/conteo_tipificacion["cantidad"].sum()*100).round(2)
     logger(f"Total estatus bot ({conteo_tipificacion['cantidad'].sum()})",conteo_tipificacion)
     # Generando umbrales
     alertas_tipificacion = conteo_tipificacion[conteo_tipificacion["porcentaje"] > 30]
-    logger(f"Revisar problema", alertas_tipificacion, level="warning")
+    logger(f"Revisar problema", alertas_tipificacion)
 
     # Obteniendo remarcaciones
     conteo_remarcaciones = df["customer_id_x"].value_counts().value_counts().to_frame("cantidad")
@@ -204,11 +236,20 @@ def panel_principal(llamadas:pd.DataFrame, tipificaciones: pd.DataFrame, file = 
     logger(f"Total remarcaciones",conteo_remarcaciones)
     logger("Proceso finalizado")
 
-
-    return df
+    return total_registros, conteo_estatus_llamada, conteo_tipificacion, conteo_remarcaciones
 
 # Obtener detalles por tifipifacion de bot
-def get_details_tipificacion(df:pd.DataFrame, tipificacion):
+def get_details_tipificacion(mes, tipificacion):
+    # Buscando archivo base
+    path = f"{dir_actual}/{datetime.now().strftime('data/%Y%m/Union_%Y%m%d.xlsx')}"
+    logger(f"Buscando archivo {path}")
+    if os.path.exists(path):
+        df = pd.read_excel(path)
+        logger("Archivo encontrado")
+    else:
+        logger("Archivo no encontrado, creandolo...")
+        df = crear_reportes(mes,True)
+
     if df.empty:
         logger("No se encontro informacion")
         return pd.DataFrame()
@@ -219,23 +260,31 @@ def get_details_tipificacion(df:pd.DataFrame, tipificacion):
     return df_tipificacion
 
 # Obtener detalles por numero de telefono
-def get_details_numero(df:pd.DataFrame, numero):
-    if tipificaciones.empty:
+def get_details_numero(mes, numero):
+    # Buscando archivo base
+    path = f"{dir_actual}/{datetime.now().strftime('data/%Y%m/Union_%Y%m%d.xlsx')}"
+    logger(f"Buscando archivo {path}")
+    if os.path.exists(path):
+        df = pd.read_excel(path)
+        logger("Archivo encontrado")
+    else:
+        logger("Archivo no encontrado, creandolo...")
+        df = crear_reportes(mes,True)
+
+    if df.empty:
         logger("No se encontro informacion")
         return pd.DataFrame()
+
     logger(f"Obteniendo detalles de {numero}")
-    df_llamadas = df[df['telephone'] == numero]
+    df_llamadas = df[df['telephone'] == int(numero)]
     df_llamadas = df_llamadas[["customer_id_x","customer_name","telephone","date_x","result_x","cod_opc_menu","opt8","opt12"]]
     if df_llamadas.empty:
         logger(f"No se encontraron registros de {numero}")
-        return 0
+        return pd.DataFrame()
     else:
         logger(df_llamadas)
         return df_llamadas
 
-llamadas = campaign_3("5")
-tipificaciones = diagram_reports_1("5")
-
-df = panel_principal(llamadas,tipificaciones)
-df_tipificacion = get_details_tipificacion(df,"CV_BUZON")
-df_llamadas = get_details_numero(df,"9525545385141")
+total_registros, conteo_estatus_llamada, conteo_tipificacion, conteo_remarcaciones = panel_principal(5)
+df_tipificacion = get_details_tipificacion(5,"CV_BUZON")
+df_llamadas = get_details_numero(5,"9526671619595")
