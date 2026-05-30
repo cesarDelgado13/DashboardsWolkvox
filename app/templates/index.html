@@ -31,7 +31,6 @@
 
   <body>
     <h2 id="header-tittle">Controlador de Wolkvox</h2>
-
     <!-- 🔹 CONTROLES -->
     <section id="controls">
       <form id="form">
@@ -62,11 +61,11 @@
     <!-- 🔹 SCRIPTS -->
     <script>
       // =========================
-      // CARGAR CONFIGURACIONES
+      // GENERACION GRAFICAS BOT
       // =========================
       let miGraficaPastel = null;
       async function cargarPanel() {
-        const response = await fetch("http://127.0.0.1:8000/panel-principal");
+        const response = await fetch("/panel-principal");
         const resultado = await response.json();
 
         const ctx = document
@@ -82,10 +81,10 @@
         miGraficaPastel = new Chart(ctx, {
           type: "pie", // Define que es una gráfica de pastel
           data: {
-            labels: resultado.labels, // Recibe: ['ANSWER', 'NO-ANSWER']
+            labels: resultado.data.bot_etiquetas, // Recibe: ['ANSWER', 'NO-ANSWER']
             datasets: [
               {
-                data: resultado.data, // Recibe: [71.4, 28.6]
+                data: resultado.data.bot_porcentajes, // Recibe: [71.4, 28.6]
                 backgroundColor: [
                   "#2ecc71", // Verde para ANSWER
                   "#e74c3c", // Rojo para NO-ANSWER
@@ -97,8 +96,75 @@
             ],
           },
           options: {
+            // on click
+            onClick: async (event, elements) => {
+              if (elements.length > 0) {
+                const index = elements[0].index;
+                
+
+                const label = resultado.data.bot_etiquetas[index];
+                const valor = resultado.data.bot_porcentajes[index];
+
+                console.log(label);
+                console.log(valor);
+
+                // Consulta backend
+                const response = await fetch(`/ivr-status/${label}`);
+                const data = await response.json();
+
+
+                // Construir filas HTML
+                let filas = "";
+
+                data.forEach((registro) => {
+                  filas += `
+        <tr>
+          <td>${registro.customer_id_x}</td>
+          <td>${registro.customer_name}</td>
+          <td>${registro.telephone}</td>
+          <td>${registro.date_x}</td>
+        </tr>
+      `;
+                });
+
+                // Mostrar popup con tabla
+                Swal.fire({
+                  title: `Detalle ${label}`,
+                  width: "800px",
+                  html: `
+        <h3>${valor}%</h3>
+
+        <div style="max-height:400px; overflow-y:auto;">
+          <table border="1" style="width:100%; border-collapse: collapse;">
+
+            <thead style="background:#f2f2f2;">
+              <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Telefono</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${filas}
+            </tbody>
+
+          </table>
+        </div>
+      `,
+                  icon: "info",
+                });
+              }
+            },
+
+            // on click
             responsive: true,
             plugins: {
+              title: {
+                display: true,
+                text: "Detalle de llamada",
+              },
               legend: {
                 position: "top",
               },
